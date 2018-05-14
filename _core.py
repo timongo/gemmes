@@ -171,38 +171,38 @@ class GemmesIntegrator(object):
         # Initilaze the solution
         self.sol = None
         
-    def Solve(self, plot=True, verb=-1):
+    def Phi(self,x):
+        """
+        Philips curve
+        """
+        return self.phi0 + self.phi1*x
 
-        def Phi(x):
-            """
-            Philips curve
-            """
-            return self.phi0 + self.phi1*x
+    def Kappa(self,x):
+        """
+        Investment function
+        """
+        kappa = self.kappa0 + self.kappa1*x
+        if kappa < self.kappamin:
+            return self.kappamin
+        elif kappa > self.kappamax:
+            return self.kappamax
+        else:
+            return kappa
 
-        def Kappa(x):
-            """
-            Investment function
-            """
-            kappa = self.kappa0 + self.kappa1*x
-            if kappa < self.kappamin:
-                return self.kappamin
-            elif kappa > self.kappamax:
-                return self.kappamax
-            else:
-                return kappa
+    def Delta(self,x):
+        """
+        Dividend function
+        """
+        div = self.div0 + self.div1*x
+        if div < self.divmin:
+            return self.divmin
+        elif div > self.divmax:
+            return self.divmax
+        else:
+            return div
 
-        def Delta(x):
-            """
-            Dividend function
-            """
-            div = self.div0 + self.div1*x
-            if div < self.divmin:
-                return self.divmin
-            elif div > self.divmax:
-                return self.divmax
-            else:
-                return div
 
+    def Solve(self):
 
         def InitialConditions(Y,pbs,T,n,Eind):
             """
@@ -264,12 +264,12 @@ class GemmesIntegrator(object):
             pi = (1. - omega - self.r*d
                   -(pC*sigma + deltaD*self.nu)/(1. - DY))
             # Inflation
-            c = omega + self.r*d + Delta(pi) + self.nu*deltaD/(1.-DY)
+            c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/(1.-DY)
             i = self.eta*(self.m*c - 1.)
             # Economic growth rate
-            g = Kappa(pi)*(1-DY)/self.nu - deltaD
+            g = self.Kappa(pi)*(1-DY)/self.nu - deltaD
             # Population growth
-            beta = self.q*(1-u[3]/self.PN)
+            beta = self.q*(1-N/self.PN)
             # Temperature change
             CO2AT = CO2[0]
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
@@ -280,14 +280,14 @@ class GemmesIntegrator(object):
             A = sigma*pbs*n**self.theta/self.theta
             Y0 = Y/((1.-DY)*(1.-A))
             Eind = Y0*sigma*(1-n)
-            self.other = (DY,A)
             E = Eind + Eland
             CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
+            self.other = (i,c)
             
-            return [omega*(Phi(lam) - i - self.alpha),
+            return [omega*(self.Phi(lam) - i - self.alpha),
                     lam*(g - self.alpha - beta),
                     (-d*(g + i)
-                     +Kappa(pi) + Delta(pi) - pi
+                     +self.Kappa(pi) + self.Delta(pi) - pi
                      -self.nu*deltaD/(1.-DY)),
                     N*beta,
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C,
@@ -330,7 +330,8 @@ class GemmesIntegrator(object):
 
         t = [self.dt]
         U = [U_ini]
-        other = []
+        dudt = f(self.dt,U_ini)
+        other = [self.other]
         while system.successful() and system.t < self.tmax:
             system.integrate(system.t + self.dt)
             t.append(system.t)
