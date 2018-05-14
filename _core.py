@@ -1,17 +1,26 @@
 #!/usr/bin/python
 
+# Common
 import numpy as np
 from scipy.integrate import ode
 
+# Library-specifici
+import gemmes._utils as _utils
+import gemmes._plot as _plot
 
-class GemmesIntegrator():
+
+__all__ = ['GemmesIntegrator']
+
+
+class GemmesIntegrator(object):
     """
     Integrator for the dynamical system of Gemmes
-    Coping with Wollapse: A Stock-Flow Consistent Monetary Macrodynamics of Global Warming
+    Coping with the Collapse: A Stock-Flow Consistent Monetary Macrodynamics of Global Warming
     https://www.sciencedirect.com/science/article/pii/S0921800916309569
     """
 
-    def __init__(self,alpha=0.02,
+    def __init__(self, name='',
+                 alpha=0.02,
                  q=0.0305,
                  PN=7.056,
                  nu=2.7,
@@ -71,9 +80,11 @@ class GemmesIntegrator():
                  # Integration parameters
                  dt=0.5, # half a year time step
                  tmax=84.): # up to 2100
+
         """
         Initialization
         """
+        self.name = name # Name of the run, useful for plotting multiple runs
 
         self.alpha = alpha # Constant growth rate of labor productivity
         self.q = q # Speed of growth of the workforce dynamics
@@ -153,8 +164,14 @@ class GemmesIntegrator():
 
         self.dt = dt
         self.tmax = tmax
+
+        # Store Param class to facailitate handling / understanding
+        self.params = _utils.Params()
+
+        # Initilaze the solution
+        self.sol = None
         
-    def Solve(self):
+    def Solve(self, plot=True, verb=-1):
 
         def Phi(x):
             """
@@ -308,7 +325,7 @@ class GemmesIntegrator():
                  self.Eland_ini,
                  self.pbs_ini]
         
-        system = ode(f).set_integrator('dop853')
+        system = ode(f).set_integrator('dop853', verbosity=verb)
         system.set_initial_value(U_ini,self.dt)
 
         t = [self.dt]
@@ -323,6 +340,33 @@ class GemmesIntegrator():
         U = np.array(U)
         other = np.array(other)
         t = np.array(t)
+        
+        # Keep track of the solution for later use (plot, treatment...)
+        self.sol = {'U':U, 't':t, 'other':other}
+
+        # Optional plotting right away after computation
+        if plot:
+            self.plot()
 
         return t,U,other
-        
+
+    def plot(self, Type='basic', fs=None, dmargin=None, draw=True):
+        """ Plot the solution """
+        assert self.sol is not None, "System not solved yet ! "
+        if Type=='basic':
+            lax = _plot.plot_basic(self, fs=fs, dmargin=dmargin, draw=draw)
+        return lax
+
+
+    def compare(self, lGemInt, Type='basic',
+               fs=None, dmargin=None, draw=True):
+        assert self.sol is not None, "System not solved yet !"
+        # Prepare inputs
+        if type(lGemInt) is not list:
+            lGemInt = [lGemInt]
+        msg = "Some systems not solved yet ! "
+        assert all([ss.sol is not None for ss in lGemInt]), msg
+
+        if Type=='basic':
+            lax = _plot.plot_basic([self]+lGemInt, fs=fs, dmargin=dmargin, draw=draw)
+        return lax
