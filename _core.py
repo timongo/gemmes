@@ -201,7 +201,7 @@ class GemmesIntegrator(object):
         else:
             return div
 
-    def Solve(self):
+    def Solve(self, plot=True, verb=-1):
 
         def InitialConditions(Y,pbs,T,n,Eind):
             """
