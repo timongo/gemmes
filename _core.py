@@ -42,7 +42,7 @@ class GemmesIntegrator(object):
                  bpC=0.,
                  deltagsigma=-0.001,
                  eta=0.5,
-                 m=1.,
+                 m=3.,
                  S=3.1,
                  gammastar=0.0176,
                  F2CO2=3.681,
@@ -209,11 +209,11 @@ class GemmesIntegrator(object):
             return div
 
     def Solve(self, plot=True, verb=-1):
-
+        
         def InitialConditions(Y,pbs,T,n,Eind):
             """
             Returns
-            sigma = (1- DY/Y)/((1-n)/Eind + pbs*(1-DY)/Y)
+            sigma = ((1- DY)/Y)/((1-n)/Eind + pbs*(1-DY)/Y)
             pC = root of n = min((pC/pbs)**(1/(theta-1)),1)
             """
 
@@ -223,7 +223,7 @@ class GemmesIntegrator(object):
             DK = self.fK*D
             DY = 1. - (1.-D)/(1.-DK)
             
-            sigma = (1. - DY/Y)/((1.-n)/Eind + pbs*(1.-DY)/Y)
+            sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
             pC = pbs*n**(self.theta - 1.)
 
             return sigma,pC
@@ -237,11 +237,11 @@ class GemmesIntegrator(object):
             u[4] = T, the temperature of the atmosphere
             u[5] = T0, the temperature of the deep ocean
             u[6] = Y, the GDP
-            u[7] = pC, the carbon price
-            u[8] = sigma, the emission intensity
-            u[9] = gsigma, the rate of increase of emission intensity
-            u[10:13] = CO2-e concentration (AT, UP, LO)
-            u[13] = Eland, the land-use emissions
+            u[7] = sigma, the emission intensity
+            u[8] = gsigma, the rate of increase of emission intensity
+            u[9:12] = CO2-e concentration (AT, UP, LO)
+            u[12] = Eland, the land-use emissions
+            u[13] = pC, the carbon price
             u[14] = pbs, the backstop technology price
             """
 
@@ -252,11 +252,11 @@ class GemmesIntegrator(object):
             T = u[4]
             T0 = u[5]
             Y = u[6]
-            pC = u[7]
-            sigma = u[8]
-            gsigma = u[9]
-            CO2 = np.array(u[10:13])
-            Eland = u[13]
+            sigma = u[7]
+            gsigma = u[8]
+            CO2 = np.array(u[9:12])
+            Eland = u[12]
+            pC = u[13]
             pbs = u[14]
             
             # Temperature damage
@@ -288,7 +288,8 @@ class GemmesIntegrator(object):
             Eind = Y0*sigma*(1-n)
             E = Eind + Eland
             CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
-            self.other = (i,c)
+
+            self.other = (n)
             
             return [omega*(self.Phi(lam) - i - self.alpha),
                     lam*(g - self.alpha - beta),
@@ -298,14 +299,14 @@ class GemmesIntegrator(object):
                     N*beta,
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C,
                     self.gammastar*(T-T0)/self.C0,
-                    g,
-                    pC*(self.apC + self.bpC/t),
+                    Y*g,
                     sigma*gsigma,
                     gsigma*self.deltagsigma,
                     CO2dot[0],
                     CO2dot[1],
                     CO2dot[2],
                     Eland*self.deltaEland,
+                    pC*(self.apC + self.bpC/t),
                     pbs*self.deltapbs]
 
 
@@ -322,13 +323,13 @@ class GemmesIntegrator(object):
                  self.T_ini,
                  self.T0_ini,
                  self.Y_ini,
-                 pC_ini,
                  sigma_ini,
                  self.gsigma_ini,
                  self.CO2AT_ini,
                  self.CO2UP_ini,
                  self.CO2LO_ini,
                  self.Eland_ini,
+                 pC_ini,
                  self.pbs_ini]
         
         system = ode(f).set_integrator('dop853', verbosity=verb)

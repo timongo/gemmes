@@ -42,40 +42,40 @@ class Params(object):
                 'symbol':r'$Y$',
                 'units':'money'}
 
-        u[7] = {'var':'pC',
-                'meaning':'carbon price',
-                'symbol':r'$p_C$',
-                'units':'money'}
-
-        u[8] = {'var':'sigma',
+        u[7] = {'var':'sigma',
                 'meaning':'emission intensity',
                 'symbol':r'$\sigma$',
                 'units':'GtC/year/money'}
 
-        u[9] = {'var':'gsigma',
+        u[8] = {'var':'gsigma',
                 'meaning':'rate of increase of emission intensity',
                 'symbol':r'$g_{\sigma}$',
                 'units':'1/year'}
 
-        u[10] = {'var':'',
+        u[9] = {'var':'',
                  'meaning':'CO2-eq concentration in atmosphere',
                  'symbol':r'$CO_2^{AT}$',
                  'units':'GtC'}
 
-        u[11] = {'var':'',
+        u[10] = {'var':'',
                  'meaning':'CO2-eq concentration in upper ocean',
                  'symbol':r'$CO_2^{UP}$',
                  'units':'GtC'}
 
-        u[12] = {'var':'',
+        u[11] = {'var':'',
                  'meaning':'CO2-eq concentration in lower ocean',
                  'symbol':r'$CO_2^{LO}$',
                  'units':'GtC'}
 
-        u[13] = {'var':'Eland',
+        u[12] = {'var':'Eland',
                  'meaning':'land_use CO2-eq emissions',
                  'symbol':r'$E_{land}$',
                  'units':'GtC/year'}
+
+        u[13] = {'var':'pC',
+                'meaning':'carbon price',
+                'symbol':r'$p_C$',
+                'units':'money'}
 
         u[14] = {'var':'pbs',
                  'meaning':'price of backstop technology',
