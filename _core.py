@@ -1,12 +1,19 @@
 #!/usr/bin/python
 
+# Built-in
+import sys
+
 # Common
 import numpy as np
 from scipy.integrate import ode
 
-# Library-specifici
-import gemmes._utils as _utils
-import gemmes._plot as _plot
+# Library-specific
+if sys.version[0]=='2':
+    import _utils
+    import _plot
+else:
+    import gemmes._utils as _utils
+    import gemmes._plot as _plot
 
 
 __all__ = ['GemmesIntegrator']
