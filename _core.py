@@ -209,7 +209,7 @@ class GemmesIntegrator(object):
             return div
 
     def Solve(self, plot=True, verb=-1):
-        
+
         def InitialConditions(Y,pbs,T,n,Eind):
             """
             Returns
