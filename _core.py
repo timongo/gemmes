@@ -42,7 +42,7 @@ class GemmesIntegrator(object):
                  bpC=0.,
                  deltagsigma=-0.001,
                  eta=0.5,
-                 m=3.,
+                 m=1.875,
                  S=3.1,
                  gammastar=0.0176,
                  F2CO2=3.681,
@@ -189,23 +189,33 @@ class GemmesIntegrator(object):
         Investment function
         """
         kappa = self.kappa0 + self.kappa1*x
-        if kappa < self.kappamin:
-            return self.kappamin
-        elif kappa > self.kappamax:
-            return self.kappamax
-        else:
+        try:
+            if kappa < self.kappamin:
+                return self.kappamin
+            elif kappa > self.kappamax:
+                return self.kappamax
+            else:
+                return kappa
+        except ValueError:
+            kappa[kappa<self.kappamin] = self.kappamin
+            kappa[kappa>self.kappamax] = self.kappamax
             return kappa
-
+        
     def Delta(self,x):
         """
         Dividend function
         """
         div = self.div0 + self.div1*x
-        if div < self.divmin:
-            return self.divmin
-        elif div > self.divmax:
-            return self.divmax
-        else:
+        try:
+            if div < self.divmin:
+                return self.divmin
+            elif div > self.divmax:
+                return self.divmax
+            else:
+                return div
+        except ValueError:
+            div[div<self.divmin] = self.divmin
+            div[div>self.divmax] = self.kappamax
             return div
 
     def Solve(self, plot=True, verb=-1):
@@ -259,6 +269,9 @@ class GemmesIntegrator(object):
             pC = u[13]
             pbs = u[14]
             
+            # Abaatement cost
+            n = min((pC/pbs)**(1./(self.theta-1.)),1)
+            A = sigma*pbs*n**self.theta/self.theta
             # Temperature damage
             D = 1. - 1./(1 + self.pi1*T
                          + self.pi2*T**2
@@ -266,14 +279,16 @@ class GemmesIntegrator(object):
             DK = self.fK*D
             DY = 1. - (1.-D)/(1.-DK)
             deltaD = (self.delta + DK)
+            # Total cost of climate change
+            TotalCost = (1-DY)*(1-A)
             # Profit rate
             pi = (1. - omega - self.r*d
-                  -(pC*sigma + deltaD*self.nu)/(1. - DY))
+                  -(pC*sigma*(1-n) + deltaD*self.nu)/TotalCost)
             # Inflation
-            c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/(1.-DY)
+            c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/TotalCost
             i = self.eta*(self.m*c - 1.)
             # Economic growth rate
-            g = self.Kappa(pi)*(1-DY)/self.nu - deltaD
+            g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
             beta = self.q*(1-N/self.PN)
             # Temperature change
@@ -282,20 +297,18 @@ class GemmesIntegrator(object):
             t2016 = 1.
             t2100 = 2100 - 2016
             F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(t - t2016)/(t2100 - t2016)
-            n = min((pC/pbs)**(1./(self.theta-1.)),1)
-            A = sigma*pbs*n**self.theta/self.theta
             Y0 = Y/((1.-DY)*(1.-A))
             Eind = Y0*sigma*(1-n)
             E = Eind + Eland
             CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
 
-            self.other = (n)
+            self.other = (i,g,pi)
             
             return [omega*(self.Phi(lam) - i - self.alpha),
                     lam*(g - self.alpha - beta),
                     (-d*(g + i)
                      +self.Kappa(pi) + self.Delta(pi) - pi
-                     -self.nu*deltaD/(1.-DY)),
+                     -self.nu*deltaD/TotalCost),
                     N*beta,
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C,
                     self.gammastar*(T-T0)/self.C0,
