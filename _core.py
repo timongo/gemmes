@@ -91,6 +91,7 @@ class GemmesIntegrator(object):
         """
         Initialization
         """
+
         self.name = name # Name of the run, useful for plotting multiple runs
 
         self.alpha = alpha # Constant growth rate of labor productivity
@@ -184,6 +185,13 @@ class GemmesIntegrator(object):
         """
         return self.phi0 + self.phi1*x
 
+    def Phiinv(self,phi):
+        """
+        inverse of phi
+        """
+        
+        return (phi - self.phi0)/self.phi1
+
     def Kappa(self,x):
         """
         Investment function
@@ -200,7 +208,19 @@ class GemmesIntegrator(object):
             kappa[kappa<self.kappamin] = self.kappamin
             kappa[kappa>self.kappamax] = self.kappamax
             return kappa
+
+    def Kappainv(self,kappa):
+        """
+        inverse of kappa
+        """
         
+        if kappa>self.kappamax:
+            return None
+        elif kappa<self.kappamin:
+            return None
+        else:
+            return (kappa - self.kappa0)/self.kappa1
+
     def Delta(self,x):
         """
         Dividend function
@@ -217,6 +237,18 @@ class GemmesIntegrator(object):
             div[div<self.divmin] = self.divmin
             div[div>self.divmax] = self.kappamax
             return div
+
+    def Deltainv(self,delta):
+        """
+        inverse of delta
+        """
+        
+        if delta>self.deltamax:
+            return None
+        elif delta<self.deltamin:
+            return None
+        else:
+            return (delta - self.delta0)/self.delta1
 
     def Solve(self, plot=True, verb=-1):
         
@@ -270,8 +302,10 @@ class GemmesIntegrator(object):
             pbs = u[14]
             
             # Abaatement cost
+            pC = 0.
             n = min((pC/pbs)**(1./(self.theta-1.)),1)
             A = sigma*pbs*n**self.theta/self.theta
+            A = 0.
             # Temperature damage
             D = 1. - 1./(1 + self.pi1*T
                          + self.pi2*T**2
@@ -290,7 +324,7 @@ class GemmesIntegrator(object):
             # Economic growth rate
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
-            beta = self.q*(1-N/self.PN)
+            beta = self.q*(1.-N/self.PN)
             # Temperature change
             CO2AT = CO2[0]
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
@@ -302,7 +336,7 @@ class GemmesIntegrator(object):
             E = Eind + Eland
             CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
 
-            self.other = (i,g,pi)
+            self.other = (pi,g,TotalCost,deltaD)
             
             return [omega*(self.Phi(lam) - i - self.alpha),
                     lam*(g - self.alpha - beta),
