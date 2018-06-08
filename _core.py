@@ -269,7 +269,7 @@ class GemmesIntegrator(object):
             pC = u[13]
             pbs = u[14]
             
-            # Abaatement cost
+            # Abatement cost
             n = min((pC/pbs)**(1./(self.theta-1.)),1)
             A = sigma*pbs*n**self.theta/self.theta
             # Temperature damage
