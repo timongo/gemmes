@@ -40,9 +40,14 @@ class GemmesIntegrator(object):
                  r=0.03,
                  apC=0.02,
                  bpC=0.,
+                 conv10to15=1.1607/1000,
                  deltagsigma=-0.001,
-                 eta=0.5,
-                 m=1.875,
+                 eta=0.3,
+                 m=1.2,
+                 omitted=0.3,
+                 rstar=0.01,
+                 rtaylor=0.5,
+                 istar=0.02,
                  S=3.1,
                  gammastar=0.0176,
                  F2CO2=3.681,
@@ -65,7 +70,7 @@ class GemmesIntegrator(object):
                  div1=0.473,
                  divmin=0.,
                  divmax=0.3,
-                 C=55,
+                 C=55.,
                  C0=3.52,
                  #Initial conditions
                  CO2AT_ini=851.,
@@ -91,7 +96,7 @@ class GemmesIntegrator(object):
         """
         Initialization
         """
-
+        
         self.name = name # Name of the run, useful for plotting multiple runs
 
         self.alpha = alpha # Constant growth rate of labor productivity
@@ -107,9 +112,14 @@ class GemmesIntegrator(object):
         self.r = r # Short-term interest rate of the economy
         self.apC = apC # Carbon price evolution parameter
         self.bpC = bpC # Carbon price evolution parameter
+        self.conv10to15 = conv10to15 # Scaling factor with trillion dollars for the carbon price
         self.deltagsigma = deltagsigma # Variation rate of the growth of emission intensity
         self.eta = eta # Relaxation parameter of the inflation
         self.m = m # "markup"
+        self.omitted = omitted # Other parameter for the definition of inflation
+        self.rstar = rstar # Parameter for the Taylor function defining the interest rate as a function of inflation
+        self.rtaylor = rtaylor # Parameter for the Taylor function defining the interest rate as a function of inflation
+        self.istar = istar # Parameter for the Taylor function defining the interest rate as a function of inflation
         self.gammastar = gammastar # Heat exchange coefficient between temperature layers
         self.F2CO2 = F2CO2 # Change in the radiative forcing resulting from
         # a doubling of CO2-e concentration wrt the preindustrial period
@@ -192,6 +202,19 @@ class GemmesIntegrator(object):
         
         return (phi - self.phi0)/self.phi1
 
+    def Taylor(self,i):
+        """
+        Interest rate as a function of inflation
+        """
+        
+        r = self.rstar - self.rtaylor*self.istar + (1.+self.rtaylor)*i
+        try:
+            return min(max(r,0),1)
+        except ValueError:
+            r[r<0.] = 0.
+            r[r>1.] = 1.
+            return r
+    
     def Kappa(self,x):
         """
         Investment function
@@ -250,7 +273,7 @@ class GemmesIntegrator(object):
         else:
             return (delta - self.delta0)/self.delta1
 
-    def Solve(self, plot=True, verb=-1):
+    def Solve(self, plot=True, fignumber=1, verb=-1):
 
         def InitialConditions(Y,pbs,T,n,Eind):
             """
@@ -304,7 +327,6 @@ class GemmesIntegrator(object):
             # Abatement cost
             n = min((pC/pbs)**(1./(self.theta-1.)),1)
             A = sigma*pbs*n**self.theta/self.theta
-            A = 0.
             # Temperature damage
             D = 1. - 1./(1 + self.pi1*T
                          + self.pi2*T**2
@@ -314,12 +336,13 @@ class GemmesIntegrator(object):
             deltaD = (self.delta + DK)
             # Total cost of climate change
             TotalCost = (1-DY)*(1-A)
-            # Profit rate
-            pi = (1. - omega - self.r*d
-                  -(pC*sigma*(1-n) + deltaD*self.nu)/TotalCost)
             # Inflation
-            c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/TotalCost
-            i = self.eta*(self.m*c - 1.)
+            i = self.eta*(self.m*(omega+self.omitted) - 1.)
+            # Profit rate
+            r = self.Taylor(i)
+            pi = (1. - omega - r*d
+                  -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
+            # c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/TotalCost
             # Economic growth rate
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
@@ -335,7 +358,7 @@ class GemmesIntegrator(object):
             E = Eind + Eland
             CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
 
-            self.other = (pi,g,TotalCost,deltaD)
+            self.other = (i)
             
             return [omega*(self.Phi(lam) - i - self.alpha),
                     lam*(g - self.alpha - beta),
@@ -352,7 +375,7 @@ class GemmesIntegrator(object):
                     CO2dot[1],
                     CO2dot[2],
                     Eland*self.deltaEland,
-                    pC*(self.apC + self.bpC/t),
+                    pC*(self.apC + self.bpC/(t+t2016)),
                     pbs*self.deltapbs]
 
 
@@ -400,12 +423,15 @@ class GemmesIntegrator(object):
 
         # Optional plotting right away after computation
         if plot:
-            self.plot()
+            self.plot(fignumber=fignumber)
 
         return t,U,other
 
-    def plot(self, Type='basic', fs=None, dmargin=None, draw=True):
-        """ Plot the solution """
+    def plot(self, Type='basic', fs=None, dmargin=None, draw=True, fignumber=1):
+        """
+        Plot the solution
+        """
+        
         assert self.sol is not None, "System not solved yet ! "
         if Type=='basic':
             lax = _plot.plot_basic(self, fs=fs, dmargin=dmargin, draw=draw)

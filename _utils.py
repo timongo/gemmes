@@ -68,7 +68,7 @@ class Params(object):
                  'units':'GtC'}
 
         u[12] = {'var':'Eland',
-                 'meaning':'land_use CO2-eq emissions',
+                 'meaning':'land use CO2-eq emissions',
                  'symbol':r'$E_{land}$',
                  'units':'GtC/year'}
 

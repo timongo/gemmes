@@ -10,7 +10,7 @@ _dmargin = dict(left=0.06, right=0.98, bottom=0.04, top=0.96,
                 wspace=0.2, hspace=0.2)
 
 def plot_basic(lGemInt,
-               fs=None, dmargin=None, draw=True):
+               fs=None, dmargin=None, draw=True, fignumber=1):
     """ Very basic plotting function to visualize the time traces of all parameters
     
     fs = figure size in inches
@@ -30,11 +30,11 @@ def plot_basic(lGemInt,
     nparams = lGemInt[0].sol['U'].shape[1]
 
     # Prepare figure and axes grid
-    fig = plt.figure(figsize=fs)
+    fig = plt.figure(fignumber,figsize=fs)
     axarr = GridSpec(3,5, **dmargin)
     # Create and format axes
     lax = []
-    daxprop = {'frameon':True, 'facecolor':'w'}
+    daxprop = {'frameon':True}#, 'facecolor':'w'}
     for ii in range(0,nparams):
         if ii==0:
             lax.append(fig.add_subplot(axarr[ii], **daxprop))
