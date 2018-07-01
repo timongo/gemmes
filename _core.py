@@ -96,7 +96,7 @@ class GemmesIntegrator(object):
         """
         Initialization
         """
-        
+
         self.name = name # Name of the run, useful for plotting multiple runs
 
         self.alpha = alpha # Constant growth rate of labor productivity
