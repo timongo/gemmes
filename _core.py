@@ -8,7 +8,7 @@ import numpy as np
 from scipy.integrate import ode
 
 # Library-specific
-if sys.version[0]=='2':
+if sys.version[0]=='3':
     import _utils
     import _plot
 else:
@@ -258,7 +258,7 @@ class GemmesIntegrator(object):
                 return div
         except ValueError:
             div[div<self.divmin] = self.divmin
-            div[div>self.divmax] = self.kappamax
+            div[div>self.divmax] = self.divmax
             return div
 
     def Deltainv(self,delta):
@@ -326,7 +326,7 @@ class GemmesIntegrator(object):
             
             # Abatement cost
             n = min((pC/pbs)**(1./(self.theta-1.)),1)
-            A = sigma*pbs*n**self.theta/self.theta
+            A = min(sigma*pbs*n**self.theta/self.theta,0.)
             # Temperature damage
             D = 1. - 1./(1 + self.pi1*T
                          + self.pi2*T**2
@@ -336,13 +336,15 @@ class GemmesIntegrator(object):
             deltaD = (self.delta + DK)
             # Total cost of climate change
             TotalCost = (1-DY)*(1-A)
-            # Inflation
-            i = self.eta*(self.m*(omega+self.omitted) - 1.)
             # Profit rate
-            r = self.Taylor(i)
+            #r = self.Taylor(i)
+            r = self.r
             pi = (1. - omega - r*d
                   -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
-            # c = omega + self.r*d + self.Delta(pi) + self.nu*deltaD/TotalCost
+            # Unitary cost of production
+            c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            # Inflation
+            i = self.eta*(self.m*c - 1.)
             # Economic growth rate
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
@@ -351,7 +353,7 @@ class GemmesIntegrator(object):
             CO2AT = CO2[0]
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
             t2016 = 1.
-            t2100 = 2100 - 2016
+            t2100 = 2100. - 2016.
             F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(t - t2016)/(t2100 - t2016)
             Y0 = Y/((1.-DY)*(1.-A))
             Eind = Y0*sigma*(1-n)
@@ -360,23 +362,23 @@ class GemmesIntegrator(object):
 
             self.other = (i)
             
-            return [omega*(self.Phi(lam) - i - self.alpha),
-                    lam*(g - self.alpha - beta),
-                    (-d*(g + i)
+            return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
+                    lam*(g - self.alpha - beta), # dlam/dt
+                    (-d*(g + i) # dd/dt
                      +self.Kappa(pi) + self.Delta(pi) - pi
                      -self.nu*deltaD/TotalCost),
-                    N*beta,
-                    (F - self.rho*T - self.gammastar*(T-T0))/self.C,
-                    self.gammastar*(T-T0)/self.C0,
-                    Y*g,
-                    sigma*gsigma,
-                    gsigma*self.deltagsigma,
-                    CO2dot[0],
-                    CO2dot[1],
-                    CO2dot[2],
-                    Eland*self.deltaEland,
-                    pC*(self.apC + self.bpC/(t+t2016)),
-                    pbs*self.deltapbs]
+                    N*beta, #dN.dt
+                    (F - self.rho*T - self.gammastar*(T-T0))/self.C, #dT/dt
+                    self.gammastar*(T-T0)/self.C0, # dT0/dt
+                    Y*g, #dY/dt
+                    sigma*(gsigma-i), #dsigma/dt
+                    gsigma*self.deltagsigma, #dgsigma/dt
+                    CO2dot[0], # dCO2/dt (AT)
+                    CO2dot[1], # dCO2/dt (UP)
+                    CO2dot[2], # dCO2/dt (LO)
+                    Eland*self.deltaEland, #dEland/dt
+                    pC*(self.apC + self.bpC/(t+t2016)), #dpC/dt
+                    pbs*self.deltapbs] # dpbs/dt
 
 
         sigma_ini,pC_ini = InitialConditions(self.Y_ini,
@@ -397,9 +399,11 @@ class GemmesIntegrator(object):
                  self.CO2AT_ini,
                  self.CO2UP_ini,
                  self.CO2LO_ini,
+                 self.Eind_ini,
                  self.Eland_ini,
                  pC_ini,
-                 self.pbs_ini]
+                 self.pbs_ini,
+                 i_ini]
         
         system = ode(f).set_integrator('dop853', verbosity=verb)
         system.set_initial_value(U_ini,self.dt)
@@ -411,6 +415,7 @@ class GemmesIntegrator(object):
         while system.successful() and system.t < self.tmax:
             system.integrate(system.t + self.dt)
             t.append(system.t)
+            
             U.append(system.y)
             other.append(self.other)
             
@@ -434,7 +439,7 @@ class GemmesIntegrator(object):
         
         assert self.sol is not None, "System not solved yet ! "
         if Type=='basic':
-            lax = _plot.plot_basic(self, fs=fs, dmargin=dmargin, draw=draw)
+            lax = _plot.plot_basic(self, fs=fs, dmargin=dmargin, draw=draw,fignumber=fignumber)
         return lax
 
 

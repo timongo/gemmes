@@ -10,77 +10,112 @@ class Params(object):
         u[0] = {'var':'omega',
                 'meaning':'share of labour in GDP',
                 'symbol':r'$\omega$',
-                'units':'adim.'}
+                'units':'adim.',
+                'plotmethod':'lin'}
 
         u[1] = {'var':'llambda',
                 'meaning':'employment rate',
                 'symbol':r'$\lambda$',
-                'units':'adim.'}
+                'units':'adim.',
+                'plotmethod':'lin'}
 
         u[2] = {'var':'d',
                 'meaning':'private debt ratio',
                 'symbol':r'$d$',
-                'units':'adim.'}
+                'units':'adim.',
+                'plotmethod':'lin'}
 
         u[3] = {'var':'N',
                 'meaning':'total population',
                 'symbol':r'$N$',
-                'units':'person'}
+                'units':'person',
+                'plotmethod':'lin'}
 
         u[4] = {'var':'T',
                 'meaning':'temperature of atmosphere',
                 'symbol':r'$T$',
-                'units':r'Celsius'}
+                'units':r'Celsius',
+                'plotmethod':'lin'}
 
         u[5] = {'var':'T0',
                 'meaning':'temperature of deep ocean',
                 'symbol':r'$T_0$',
-                'units':'Celsius'}
+                'units':'Celsius',
+                'plotmethod':'lin'}
 
         u[6] = {'var':'Y',
                 'meaning':'GDP',
                 'symbol':r'$Y$',
-                'units':'money'}
+                'units':'money',
+                'plotmethod':'log'}
 
         u[7] = {'var':'sigma',
                 'meaning':'emission intensity',
                 'symbol':r'$\sigma$',
-                'units':'GtC/year/money'}
+                'units':'GtC/year/money',
+                'plotmethod':'lin'}
 
         u[8] = {'var':'gsigma',
                 'meaning':'rate of increase of emission intensity',
                 'symbol':r'$g_{\sigma}$',
-                'units':'1/year'}
+                'units':'1/year',
+                'plotmethod':'lin'}
 
         u[9] = {'var':'',
                  'meaning':'CO2-eq concentration in atmosphere',
                  'symbol':r'$CO_2^{AT}$',
-                 'units':'GtC'}
+                 'units':'GtC',
+                'plotmethod':'log'}
 
         u[10] = {'var':'',
                  'meaning':'CO2-eq concentration in upper ocean',
                  'symbol':r'$CO_2^{UP}$',
-                 'units':'GtC'}
+                 'units':'GtC',
+                 'plotmethod':'log'}
 
         u[11] = {'var':'',
                  'meaning':'CO2-eq concentration in lower ocean',
                  'symbol':r'$CO_2^{LO}$',
-                 'units':'GtC'}
+                 'units':'GtC',
+                 'plotmethod':'log'}
 
         u[12] = {'var':'Eland',
                  'meaning':'land use CO2-eq emissions',
                  'symbol':r'$E_{land}$',
-                 'units':'GtC/year'}
+                 'units':'GtC/year',
+                 'plotmethod':'lin'}
 
-        u[13] = {'var':'pC',
+        u[13] = {'var':'Eind',
+                 'meaning':'industrial CO2-eq emissions',
+                 'symbol':r'$E_{ind}$',
+                 'units':'GtC/year',
+                 'plotmethod':'lin'}
+
+        u[14] = {'var':'pC',
                 'meaning':'carbon price',
                 'symbol':r'$p_C$',
-                'units':'money'}
+                'units':'money',
+                'plotmethod':'lin'}
 
-        u[14] = {'var':'pbs',
+        u[15] = {'var':'pbs',
                  'meaning':'price of backstop technology',
                  'symbol':r'$p_{bs}$',
-                 'units':'money'}
+                 'units':'money',
+                 'plotmethod':'lin'}
+
+        u[16] = {'var':'pbs',
+                 'meaning':'price of backstop technology',
+                 'symbol':r'$p_{bs}$',
+                 'units':'money',
+                 'plotmethod':'lin'}
+
+        u[17] = {'var':'i',
+                 'meaning':'inflation',
+                 'symbol':r'$i$',
+                 'units':'adim.',
+                 'plotmethod':'lin'}
+
+
 
         self._lparams = u
 

@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 from matplotlib.gridspec import GridSpec
 
 _fs = (18,8)
-_dmargin = dict(left=0.06, right=0.98, bottom=0.04, top=0.96,
-                wspace=0.2, hspace=0.2)
+_dmargin = dict(left=0.06, right=0.98, bottom=0.06, top=0.96,
+                wspace=0.4, hspace=0.2)
 
 def plot_basic(lGemInt,
                fs=None, dmargin=None, draw=True, fignumber=1):
@@ -17,6 +17,7 @@ def plot_basic(lGemInt,
     draw = bool, useful if heavy figure or embedded in GUI that require not
            drawing immediately
     """
+
     # Default inputs
     if fs is None:
         fs = _fs
@@ -31,6 +32,7 @@ def plot_basic(lGemInt,
 
     # Prepare figure and axes grid
     fig = plt.figure(fignumber,figsize=fs)
+    plt.clf()
     axarr = GridSpec(3,5, **dmargin)
     # Create and format axes
     lax = []
@@ -40,7 +42,8 @@ def plot_basic(lGemInt,
             lax.append(fig.add_subplot(axarr[ii], **daxprop))
         else:
             # Make sure a zoom on an axes is replicated in all (for t)
-            lax.append(fig.add_subplot(axarr[ii], sharex=lax[0], **daxprop))
+            # lax.append(fig.add_subplot(axarr[ii], sharex=lax[0], **daxprop))
+            lax.append(fig.add_subplot(axarr[ii], **daxprop))
         tit = params[ii]['meaning']
         lab = "%s (%s)"%(params[ii]['symbol'], params[ii]['units'])
         lax[ii].set_title(tit)
@@ -53,8 +56,13 @@ def plot_basic(lGemInt,
     # Add data to the axes
     for gg in lGemInt:
         for ii in range(0,nparams):
-            lax[ii].plot(gg.sol['t'], gg.sol['U'][:,ii],
-                         ls='-', lw=1., label=gg.name)
+            if ii==6:
+                lax[ii].semilogy(gg.sol['t'], gg.sol['U'][:,ii],
+                                 ls='-', lw=2., label=gg.name)
+            else:
+                lax[ii].plot(gg.sol['t'], gg.sol['U'][:,ii],
+                             ls='-', lw=2., label=gg.name)
+            lax[ii].grid()
 
     if draw:
         fig.canvas.draw()
