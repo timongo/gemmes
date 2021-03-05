@@ -8,7 +8,7 @@ import numpy as np
 from scipy.integrate import ode
 
 # Library-specific
-if sys.version[0]=='3':
+if sys.version[0]=='2':
     import _utils
     import _plot
 else:
@@ -18,6 +18,12 @@ else:
 
 __all__ = ['GemmesIntegrator']
 
+eco_vars = ['omega','lambda','d','N','pi']
+gdp_vars = ['Y','Y0','g','i']
+emi_vars = ['Eind','Eland','sigma','gsigma','n']
+clim_vars = ['T','T0','CO2at','CO2up','CO2lo']
+pcar_vars = ['pC','pbs']
+dam_vars = ['A','DY','DK','D']
 
 class GemmesIntegrator(object):
     """
@@ -42,9 +48,8 @@ class GemmesIntegrator(object):
                  bpC=0.,
                  conv10to15=1.1607/1000,
                  deltagsigma=-0.001,
-                 eta=0.3,
-                 m=1.2,
-                 omitted=0.3,
+                 eta=0.5,
+                 m=1.3,
                  rstar=0.01,
                  rtaylor=0.5,
                  istar=0.02,
@@ -70,7 +75,7 @@ class GemmesIntegrator(object):
                  div1=0.473,
                  divmin=0.,
                  divmax=0.3,
-                 C=55.,
+                 C=49.76,
                  C0=3.52,
                  #Initial conditions
                  CO2AT_ini=851.,
@@ -78,7 +83,7 @@ class GemmesIntegrator(object):
                  CO2LO_ini=1740.,
                  d_ini=1.53,
                  deltaEland=-0.022,
-                 Eind_ini=38.85,
+                 Eind_ini=35.85,
                  Eland_ini=2.6,
                  gsigma_ini=-0.0152,
                  pbs_ini=547.22,
@@ -91,7 +96,8 @@ class GemmesIntegrator(object):
                  omega_ini=0.578,
                  # Integration parameters
                  dt=0.5, # half a year time step
-                 tmax=84.): # up to 2100
+                 tmax=84., # up to 2100
+                 nofeedback=False):
 
         """
         Initialization
@@ -103,9 +109,18 @@ class GemmesIntegrator(object):
         self.q = q # Speed of growth of the workforce dynamics
         self.PN = PN # Upper limit of the workforce dynamics in billions
         self.nu = nu # Constant capital-to-output ratio
-        self.pi1 = pi1 # Damage function parameter
-        self.pi2 = pi2 # Damage function parameter
-        self.pi3 = pi3 # Damage function parameter
+        if nofeedback:
+            self.pi1 = 0. # Damage function parameter
+            self.pi2 = 0. # Damage function parameter
+            self.pi3 = 0. # Damage function parameter
+            self.Afac = 0.
+            self.nfac = 1.
+        else:
+            self.pi1 = pi1 # Damage function parameter
+            self.pi2 = pi2 # Damage function parameter
+            self.pi3 = pi3 # Damage function parameter
+            self.Afac = conv10to15 # conversion factor due to weird units
+            self.nfac = 1.
         self.zeta3 = zeta3 # Damage function parameter
         self.fK = fK # Fraction of environmental damage allocated to the stock of capital
         self.delta = delta # Depreciation rate of capital
@@ -113,10 +128,10 @@ class GemmesIntegrator(object):
         self.apC = apC # Carbon price evolution parameter
         self.bpC = bpC # Carbon price evolution parameter
         self.conv10to15 = conv10to15 # Scaling factor with trillion dollars for the carbon price
+        self.convCO2toC = 1./3.66667 # conversion from tCO2 to tC
         self.deltagsigma = deltagsigma # Variation rate of the growth of emission intensity
         self.eta = eta # Relaxation parameter of the inflation
         self.m = m # "markup"
-        self.omitted = omitted # Other parameter for the definition of inflation
         self.rstar = rstar # Parameter for the Taylor function defining the interest rate as a function of inflation
         self.rtaylor = rtaylor # Parameter for the Taylor function defining the interest rate as a function of inflation
         self.istar = istar # Parameter for the Taylor function defining the interest rate as a function of inflation
@@ -172,7 +187,10 @@ class GemmesIntegrator(object):
         self.Eland_ini = Eland_ini
         self.gsigma_ini = gsigma_ini
         self.pbs_ini = pbs_ini
-        self.n_ini = n_ini
+        if nofeedback:
+            self.n_ini = 0.
+        else:
+            self.n_ini = n_ini
         self.N_ini = N_ini
         self.T_ini = T_ini
         self.T0_ini = T0_ini
@@ -275,7 +293,7 @@ class GemmesIntegrator(object):
 
     def Solve(self, plot=True, fignumber=1, verb=-1):
 
-        def InitialConditions(Y,pbs,T,n,Eind):
+        def InitialConditions(omega,d,Y,pbs,T,n,Eind):
             """
             Returns
             sigma = ((1- DY)/Y)/((1-n)/Eind + pbs*(1-DY)/Y)
@@ -287,11 +305,27 @@ class GemmesIntegrator(object):
                          + self.pi3*T**self.zeta3)
             DK = self.fK*D
             DY = 1. - (1.-D)/(1.-DK)
+            deltaD = (self.delta + DK)
             
             sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
+            A = self.Afac*sigma*pbs*n**self.theta/self.theta
             pC = pbs*n**(self.theta - 1.)
 
-            return sigma,pC
+            TotalCost = (1-DY)*(1-A)
+            i = self.eta*(self.m*(omega+0.3) - 1.)
+            r = self.Taylor(i)
+            pi = (1. - omega - r*d
+                  -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
+            # Unitary cost of production
+            # c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            # Inflation
+            # i = self.eta*(self.m*c - 1.)
+
+            g = self.Kappa(pi)*TotalCost/self.nu - deltaD 
+
+            Y0 = Y/((1.-DY)*(1.-A))
+
+            return sigma,pC,i,A,pi,D,DK,DY,g,Y0
             
         def f(t,u):
             """
@@ -324,9 +358,13 @@ class GemmesIntegrator(object):
             pC = u[13]
             pbs = u[14]
             
+            # saturation of pC
+            expo = (self.theta-1.)/self.theta
+            pC = pbs*min(pC/pbs,0.95*(self.theta/(sigma*pbs))**expo)
+
             # Abatement cost
-            n = min((pC/pbs)**(1./(self.theta-1.)),1)
-            A = min(sigma*pbs*n**self.theta/self.theta,0.)
+            n = self.nfac*min((pC/pbs)**(1./(self.theta-1.)),1)
+            A = self.Afac*sigma*pbs*n**self.theta/self.theta
             # Temperature damage
             D = 1. - 1./(1 + self.pi1*T
                          + self.pi2*T**2
@@ -336,15 +374,16 @@ class GemmesIntegrator(object):
             deltaD = (self.delta + DK)
             # Total cost of climate change
             TotalCost = (1-DY)*(1-A)
+            i = self.eta*(self.m*(omega+0.3) - 1.)
             # Profit rate
-            #r = self.Taylor(i)
-            r = self.r
+            r = self.Taylor(i)
+            # r = self.r
             pi = (1. - omega - r*d
                   -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
             # Unitary cost of production
-            c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            # c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
             # Inflation
-            i = self.eta*(self.m*c - 1.)
+            # i = self.eta*(self.m*c - 1.)
             # Economic growth rate
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
@@ -358,9 +397,18 @@ class GemmesIntegrator(object):
             Y0 = Y/((1.-DY)*(1.-A))
             Eind = Y0*sigma*(1-n)
             E = Eind + Eland
-            CO2dot = np.array([E,0,0]) + np.dot(self.phimat,CO2)
+            CO2dot = np.array([E*self.convCO2toC,0,0]) + np.dot(self.phimat,CO2)
 
-            self.other = (i)
+            self.Eind = Eind
+            self.i = i
+            self.A = A
+            self.pi = pi
+            self.D = D
+            self.DK = DK
+            self.DY = DY
+            self.g = g
+            self.n = n
+            self.Y0 = Y0
             
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
@@ -371,7 +419,7 @@ class GemmesIntegrator(object):
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C, #dT/dt
                     self.gammastar*(T-T0)/self.C0, # dT0/dt
                     Y*g, #dY/dt
-                    sigma*(gsigma-i), #dsigma/dt
+                    sigma*gsigma, #dsigma/dt
                     gsigma*self.deltagsigma, #dgsigma/dt
                     CO2dot[0], # dCO2/dt (AT)
                     CO2dot[1], # dCO2/dt (UP)
@@ -381,11 +429,15 @@ class GemmesIntegrator(object):
                     pbs*self.deltapbs] # dpbs/dt
 
 
-        sigma_ini,pC_ini = InitialConditions(self.Y_ini,
-                                             self.pbs_ini,
-                                             self.T_ini,
-                                             self.n_ini,
-                                             self.Eind_ini)
+        var_ini = InitialConditions(self.omega_ini,
+                                    self.d_ini,
+                                    self.Y_ini,
+                                    self.pbs_ini,
+                                    self.T_ini,
+                                    self.n_ini,
+                                    self.Eind_ini)
+
+        sigma_ini,pC_ini,i_ini,A_ini,pi_ini,D_ini,DK_ini,DY_ini,g_ini,Y0_ini = var_ini
         
         U_ini = [self.omega_ini,
                  self.lambda_ini,
@@ -403,43 +455,74 @@ class GemmesIntegrator(object):
                  self.Eland_ini,
                  pC_ini,
                  self.pbs_ini,
-                 i_ini]
+                 i_ini,
+                 A_ini,
+                 pi_ini,
+                 D_ini,
+                 DK_ini,
+                 DY_ini,
+                 g_ini,
+                 self.n_ini,
+                 Y0_ini]
+
+        U_ini_sys = [self.omega_ini,
+                     self.lambda_ini,
+                     self.d_ini,
+                     self.N_ini,
+                     self.T_ini,
+                     self.T0_ini,
+                     self.Y_ini,
+                     sigma_ini,
+                     self.gsigma_ini,
+                     self.CO2AT_ini,
+                     self.CO2UP_ini,
+                     self.CO2LO_ini,
+                     self.Eland_ini,
+                     pC_ini,
+                     self.pbs_ini]
         
         system = ode(f).set_integrator('dop853', verbosity=verb)
-        system.set_initial_value(U_ini,self.dt)
-
-        t = [self.dt]
-        U = [U_ini]
-        dudt = f(self.dt,U_ini)
-        other = [self.other]
-        while system.successful() and system.t < self.tmax:
-            system.integrate(system.t + self.dt)
-            t.append(system.t)
-            
-            U.append(system.y)
-            other.append(self.other)
-            
-        U = np.array(U)
-        other = np.array(other)
-        t = np.array(t)
+        system.set_initial_value(U_ini_sys,self.dt)
         
+        nts = int(self.tmax/self.dt)
+        t = np.zeros(nts)
+        U = np.zeros((nts,25))
+        U[0,:] = U_ini
+        #
+        k=0
+        while system.successful() and k < nts-1:
+            k=k+1
+            system.integrate(system.t + self.dt)
+            t[k] = system.t
+            U[k,:12] = system.y[:12]
+            U[k,12] = self.Eind
+            U[k,13:16] = system.y[12:15]
+            U[k,16] = self.i
+            U[k,17] = self.A
+            U[k,18] = self.pi
+            U[k,19] = self.D
+            U[k,20] = self.DK
+            U[k,21] = self.DY
+            U[k,22] = self.g
+            U[k,23] = self.n
+            U[k,24] = self.Y0
+            
         # Keep track of the solution for later use (plot, treatment...)
-        self.sol = {'U':U, 't':t, 'other':other}
+        self.sol = {'t':t,'U':U}
 
         # Optional plotting right away after computation
         if plot:
             self.plot(fignumber=fignumber)
 
-        return t,U,other
+        return t,U
 
-    def plot(self, Type='basic', fs=None, dmargin=None, draw=True, fignumber=1):
+    def plot(self, vars = eco_vars+gdp_vars, fs=None, dmargin=None, draw=True, fignumber=1):
         """
         Plot the solution
         """
         
         assert self.sol is not None, "System not solved yet ! "
-        if Type=='basic':
-            lax = _plot.plot_basic(self, fs=fs, dmargin=dmargin, draw=draw,fignumber=fignumber)
+        lax = _plot.plot_basic(self, vars=vars, fs=fs, dmargin=dmargin, draw=draw,fignumber=fignumber)
         return lax
 
 
