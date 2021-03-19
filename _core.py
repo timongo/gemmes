@@ -12,8 +12,12 @@ if sys.version[0]=='2':
     import _utils
     import _plot
 else:
-    import gemmes._utils as _utils
-    import gemmes._plot as _plot
+    try:
+        import gemmes._utils as _utils
+        import gemmes._plot as _plot
+    except ModuleNotFoundError:
+        import _utils
+        import _plot
 
 
 __all__ = ['GemmesIntegrator']
