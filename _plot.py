@@ -12,15 +12,9 @@ _fs = (18,8)
 _dmargin = dict(left=0.06, right=0.96, bottom=0.06, top=0.96,
                 wspace=0.2, hspace=0.2)
 
-eco_vars = ['omega','lambda','d','N','pi']
-gdp_vars = ['Y','Y0','g','i']
-emi_vars = ['Eind','Eland','sigma','gsigma','n']
-clim_vars = ['T','T0','CO2at','CO2up','CO2lo']
-pcar_vars = ['pC','pbs']
-dam_vars = ['A','DY','DK','D']
 
 def plot_basic(lGemInt,
-               vars = eco_vars,
+               vars = None,
                fs=None, dmargin=None, draw=True, fignumber=1):
     """ Very basic plotting function to visualize the time traces of all parameters
     
@@ -28,6 +22,9 @@ def plot_basic(lGemInt,
     draw = bool, useful if heavy figure or embedded in GUI that require not
            drawing immediately
     """
+
+    if vars is None:
+        vars = lGemInt.eco_vars
 
     # Default inputs
     if fs is None:
