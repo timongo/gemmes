@@ -49,7 +49,7 @@ class GemmesIntegrator(object):
                  conv10to15=1.1607/1000,
                  deltagsigma=-0.001,
                  eta=0.5,
-                 m=1.3,
+                 mu=1.3,
                  rstar=0.01,
                  rtaylor=0.5,
                  istar=0.02,
@@ -131,7 +131,7 @@ class GemmesIntegrator(object):
         self.convCO2toC = 1./3.66667 # conversion from tCO2 to tC
         self.deltagsigma = deltagsigma # Variation rate of the growth of emission intensity
         self.eta = eta # Relaxation parameter of the inflation
-        self.m = m # "markup"
+        self.mu = mu # "markup"
         self.rstar = rstar # Parameter for the Taylor function defining the interest rate as a function of inflation
         self.rtaylor = rtaylor # Parameter for the Taylor function defining the interest rate as a function of inflation
         self.istar = istar # Parameter for the Taylor function defining the interest rate as a function of inflation
@@ -211,14 +211,8 @@ class GemmesIntegrator(object):
         """
         Philips curve
         """
+        # return -0.04006410256410257 + 6.410256410256412e-05/(1.-x)**2 # Grasselli
         return self.phi0 + self.phi1*x
-
-    def Phiinv(self,phi):
-        """
-        inverse of phi
-        """
-        
-        return (phi - self.phi0)/self.phi1
 
     def Taylor(self,i):
         """
@@ -312,14 +306,16 @@ class GemmesIntegrator(object):
             pC = pbs*n**(self.theta - 1.)
 
             TotalCost = (1-DY)*(1-A)
-            i = self.eta*(self.m*(omega+0.3) - 1.)
-            r = self.Taylor(i)
+            # i = self.eta*(self.mu*(omega+0.3) - 1.)
+            # r = self.Taylor(i)
+            r = self.r
             pi = (1. - omega - r*d
                   -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
             # Unitary cost of production
-            # c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            #c = omega + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
             # Inflation
-            # i = self.eta*(self.m*c - 1.)
+            i = self.eta*(self.mu*c - 1.)
 
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD 
 
@@ -374,16 +370,17 @@ class GemmesIntegrator(object):
             deltaD = (self.delta + DK)
             # Total cost of climate change
             TotalCost = (1-DY)*(1-A)
-            i = self.eta*(self.m*(omega+0.3) - 1.)
+            # i = self.eta*(self.mu*(omega+0.3) - 1.)
             # Profit rate
-            r = self.Taylor(i)
-            # r = self.r
+            # r = self.Taylor(i)
+            r = self.r
             pi = (1. - omega - r*d
                   -(pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost)
             # Unitary cost of production
-            # c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            c = omega + r*d + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
+            # c = omega + self.Delta(pi) + (pC*self.conv10to15*sigma*(1-n) + deltaD*self.nu)/TotalCost
             # Inflation
-            # i = self.eta*(self.m*c - 1.)
+            i = self.eta*(self.mu*c - 1.)
             # Economic growth rate
             g = self.Kappa(pi)*TotalCost/self.nu - deltaD
             # Population growth
@@ -412,9 +409,12 @@ class GemmesIntegrator(object):
             
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
-                    (-d*(g + i) # dd/dt
-                     +self.Kappa(pi) + self.Delta(pi) - pi
-                     -self.nu*deltaD/TotalCost),
+                    #(-d*(g + i) # dd/dt
+                    #  +self.Kappa(pi) + self.Delta(pi) - pi
+                    #  -self.nu*deltaD/TotalCost),
+                    (-d*(g + i - self.r) # dd/dt
+                      +omega + self.Kappa(pi) + self.Delta(pi) - 1
+                      +pC*self.conv10to15*sigma*(1-n)),
                     N*beta, #dN.dt
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C, #dT/dt
                     self.gammastar*(T-T0)/self.C0, # dT0/dt

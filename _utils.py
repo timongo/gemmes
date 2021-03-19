@@ -149,14 +149,14 @@ class Params(object):
 
         u[20] = {'var':'DK',
                  'meaning':'capital damage',
-                 'symbol':r'$D$',
+                 'symbol':r'$D^K$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':''}
 
         u[21] = {'var':'DY',
                  'meaning':'output damage',
-                 'symbol':r'$D$',
+                 'symbol':r'$D^Y$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':''}
