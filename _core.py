@@ -18,7 +18,9 @@ else:
     except ModuleNotFoundError:
         import _utils
         import _plot
-
+    except ImportError:
+        import _utils
+        import _plot
 
 __all__ = ['GemmesIntegrator']
 
@@ -521,11 +523,14 @@ class GemmesIntegrator(object):
 
         return t,U
 
-    def plot(self, vars = eco_vars+gdp_vars, fs=None, dmargin=None, draw=True, fignumber=1):
+    def plot(self, vars = None, fs=None, dmargin=None, draw=True, fignumber=1):
         """
         Plot the solution
         """
-        
+
+        if vars is None:
+            vars = self.eco_vars+self.gdp_vars
+
         assert self.sol is not None, "System not solved yet ! "
         lax = _plot.plot_basic(self, vars=vars, fs=fs, dmargin=dmargin, draw=draw,fignumber=fignumber)
         return lax
@@ -574,9 +579,10 @@ class GemmesIntegrator_V2(object):
                  bpC=0., # carbon price parameter
                  conv10to15=1.1607/1000, # conversion factor
                  deltagsigma=-0.001, # dynamics of emissivity
-                 eta=0.192, # relaxation parameter of inflation 
+                 eta=0.5, # relaxation parameter of inflation 
                  etar=10., # relaxation parameter of the interest rate
-                 mu=1.875, # markup of prices over the average cost
+                 mu=1.3, # markup of prices over the average cost
+                 omitted=0.3, # offset for the production cost in the inflation
                  rstar=0.01, # Long-term interest rate target of the economy
                  phitaylor=0.5, # parameter characterizing the reactivity of the monetary policy
                  istar=0.02, #interest rate targeted by the monetary policy
@@ -593,10 +599,10 @@ class GemmesIntegrator_V2(object):
                  phi23=0.001, # Transfer coefficient for carbon from the upper ocean/biosphere to the lower ocean
                  deltapbs=-0.005, # Exogenous growth rate of the back-stop technology price
                  theta=2.6, # parameter of the abatement cost function
-                 phi0=-0.292, # Constant of the short-term Philips curve
-                 phi1=0.469, # Slope of the short-term Philips curve
-                 kappa0=0.0397, # Constant of the investment function
-                 kappa1=0.719, # Slope of the investment function
+                 phi0=-.291535421, # Constant of the short-term Philips curve
+                 phi1=.468777035, # Slope of the short-term Philips curve
+                 kappa0=0.03178, # Constant of the investment function
+                 kappa1=0.5753, # Slope of the investment function
                  kappamin=0., # Minimum of the investment function
                  kappamax=0.3, # Maximum of the investment function
                  div0=0.051, # Constant of the dividend function
@@ -625,6 +631,8 @@ class GemmesIntegrator_V2(object):
                  lambda_ini=0.675,
                  omega_ini=0.578,
                  r_ini=0.024,
+                 # Options
+                 Damage = 'No', # 'No', 'Extreme'
                  # Integration parameters
                  dt=0.5, # half a year time step
                  tmax=84., # up to 2100
@@ -654,6 +662,7 @@ class GemmesIntegrator_V2(object):
         self.eta = eta # relaxation parameter of inflation 
         self.etar = etar # relaxation parameter of the interest rate
         self.mu = mu # markup of prices over the average cost
+        self.omitted = omitted # offset for the production cost in the inflation
         self.rstar = rstar # Long-term interest rate target of the economy
         self.phitaylor = phitaylor # parameter characterizing the reactivity of the monetary policy
         self.istar = istar #interest rate targeted by the monetary policy
@@ -716,6 +725,8 @@ class GemmesIntegrator_V2(object):
         self.lambda_ini = lambda_ini
         self.omega_ini = omega_ini
         self.r_ini = r_ini
+        # Options
+        self.Damage = Damage
         # Integration parameters
         self.dt = dt # half a year time step
         self.tmax = tmax # up to 2100
@@ -800,7 +811,6 @@ class GemmesIntegrator_V2(object):
             CR[CR>1.] = 1.
             return CR
 
-
     def Solve(self, plot=True, fignumber=1, verb=-1):
 
         def InitialConditions(omega,d,r,Y,pbs,T,n,Eind):
@@ -810,19 +820,22 @@ class GemmesIntegrator_V2(object):
             pC = root of n = min((pC/pbs)**(1/(theta-1)),1)
             """
 
-            D = 1. - 1./(1 + self.pi1*T
-                         + self.pi2*T**2
-                         + self.pi3*T**self.zeta3)
+            if self.Damage == 'No':
+                D = 0.
+            elif self.Damage == 'Extreme':
+                D = 1. - 1./(1 + self.pi1*T
+                             + self.pi2*T**2
+                             + self.pi3*T**self.zeta3)
             DK = self.fK*D
             DY = 1. - (1.-D)/(1.-DK)
             deltaD = (self.delta + DK)
             
             sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
-            A = sigma*pbs*n**self.theta/self.theta
+            A = self.conv10to15*sigma*pbs*n**self.theta/self.theta
             pC = pbs*n**(self.theta - 1.)
 
             TC = (1-DY)*(1-A)
-            i = self.eta*(self.mu*omega - 1.)
+            i = self.eta*(self.mu*(omega+self.omitted) - 1.)
             rCB = self.Taylor(i)
             self.TCi = TC
             self.omegai = omega
@@ -835,11 +848,14 @@ class GemmesIntegrator_V2(object):
             self.Ai = A
             self.nui = self.nu
             self.deltaDi = deltaD
-            piK = (TC*(1.-omega-r*d) - 0.*pC*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            piK = (TC*(1.-omega-r*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            pi = self.nu/TC*piK
             leverage = d*TC/self.nu
             CR = self.Tau(leverage)
             # Economic growth rate
-            g = ((1.-CR)*(self.Kappa(piK)*TC/self.nu - deltaD)
+            # g = ((1.-CR)*(1.25*self.Kappa(piK)*TC/self.nu - deltaD)
+            #      +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
+            g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
                  +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
 
             Y0 = Y/TC
@@ -885,28 +901,34 @@ class GemmesIntegrator_V2(object):
 
             # Abatement cost
             n = min((pC/pbs)**(1./(self.theta-1.)),1)
-            A = sigma*pbs*n**self.theta/self.theta
+            A = self.conv10to15*sigma*pbs*n**self.theta/self.theta
 
             # Temperature damage
-            D = 1. - 1./(1 + self.pi1*T
-                         + self.pi2*T**2
-                         + self.pi3*T**self.zeta3)
+            if self.Damage == 'No':
+                D = 0.
+            elif self.Damage == 'Extreme':
+                D = 1. - 1./(1 + self.pi1*T
+                             + self.pi2*T**2
+                             + self.pi3*T**self.zeta3)
             DK = self.fK*D
             DY = 1. - (1.-D)/(1.-DK)
             deltaD = (self.delta + DK)
             # Total cost of climate change
             TC = (1-DY)*(1-A)
             # inflation
-            i = self.eta*(self.mu*omega - 1.)
+            i = self.eta*(self.mu*(omega+self.omitted) - 1.)
             # central bank interest rate
             rCB = self.Taylor(i)
             # return on assets piK
-            piK = (TC*(1.-omega-r*d) - 0.*pC*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            piK = (TC*(1.-omega-r*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            pi = self.nu/TC*piK
             # leverage
             leverage = d*TC/self.nu
             CR = self.Tau(leverage)
             # Economic growth rate
-            g = ((1.-CR)*(self.Kappa(piK)*TC/self.nu - deltaD)
+            # g = ((1.-CR)*(1.25*self.Kappa(piK)*TC/self.nu - deltaD)
+            #      +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
+            g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
                  +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
             # Population growth
             beta = self.deltaN*(1.-N/self.Nbar)
@@ -935,7 +957,7 @@ class GemmesIntegrator_V2(object):
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
                     (-d*(g + i + CR*self.srep) # dd/dt
-                     +(1.-CR)*self.Kappa(piK)
+                     +(1.-CR)*1.25*self.Kappa(pi)
                      -self.nu*((1.-CR)*deltaD + piK - self.Delta(piK))/TC),
                     N*beta, #dN.dt
                     (rCB-r)/self.etar, # dr/dt
@@ -987,7 +1009,8 @@ class GemmesIntegrator_V2(object):
                  DY_ini,
                  g_ini,
                  self.n_ini,
-                 Y0_ini]
+                 Y0_ini,
+                 self.Taylor(i_ini)]
 
         U_ini_sys = [self.omega_ini,
                      self.lambda_ini,
@@ -1006,12 +1029,12 @@ class GemmesIntegrator_V2(object):
                      pC_ini,
                      self.pbs_ini]
         
-        system = ode(f).set_integrator('dop853', verbosity=verb)
+        system = ode(f).set_integrator('dop853')
         system.set_initial_value(U_ini_sys,self.dt)
         
         nts = int(self.tmax/self.dt)
         t = np.zeros(nts)
-        U = np.zeros((nts,26))
+        U = np.zeros((nts,27))
         U[0,:] = U_ini
         #
         k=0
@@ -1031,6 +1054,7 @@ class GemmesIntegrator_V2(object):
             U[k,23] = self.g
             U[k,24] = self.n
             U[k,25] = self.Y0
+            U[k,26] = self.Taylor(self.i)
             
         # Keep track of the solution for later use (plot, treatment...)
         self.sol = {'t':t,'U':U}
@@ -1041,11 +1065,14 @@ class GemmesIntegrator_V2(object):
 
         return t,U
 
-    def plot(self, vars = eco_vars+gdp_vars, fs=None, dmargin=None, draw=True, fignumber=1):
+    def plot(self, vars = None, fs=None, dmargin=None, draw=True, fignumber=1):
         """
         Plot the solution
         """
         
+        if vars is None:
+            vars = self.eco_vars+self.gdp_vars
+
         assert self.sol is not None, "System not solved yet ! "
         lax = _plot.plot_basic(self, vars=vars, fs=fs, dmargin=dmargin, draw=draw,fignumber=fignumber)
         return lax
