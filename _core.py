@@ -636,7 +636,7 @@ class GemmesIntegrator_V2(object):
                  # Integration parameters
                  dt=0.5, # half a year time step
                  tmax=84., # up to 2100
-                 nofeedback=False):
+                 method='dop853'):
         """
         Initialization
         """
@@ -657,7 +657,7 @@ class GemmesIntegrator_V2(object):
         self.apC = apC # carbon price parameter
         self.bpC = bpC # carbon price parameter
         self.conv10to15 = conv10to15 # conversion factor
-        self.convCO2toC = 1./3.66667 # conversion from tCO2 to tC
+        self.convCO2toC = 1./3.666 # conversion from tCO2 to tC
         self.deltagsigma = deltagsigma # dynamics of emissivity
         self.eta = eta # relaxation parameter of inflation 
         self.etar = etar # relaxation parameter of the interest rate
@@ -730,7 +730,7 @@ class GemmesIntegrator_V2(object):
         # Integration parameters
         self.dt = dt # half a year time step
         self.tmax = tmax # up to 2100
-        self.nofeedback = nofeedback
+        self.method=method # integration algorithm
         # Store Param class to facilitate handling / understanding
         self.params = _utils.Params_V2()
 
@@ -827,6 +827,9 @@ class GemmesIntegrator_V2(object):
 
             if self.Damage == 'No':
                 D = 0.
+            elif self.Damage == 'Q':
+                D = 1. - 1./(1 + self.pi1*T
+                             + self.pi2*T**2)
             elif self.Damage == 'Extreme':
                 D = 1. - 1./(1 + self.pi1*T
                              + self.pi2*T**2
@@ -851,12 +854,16 @@ class GemmesIntegrator_V2(object):
             g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
                  +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
 
+            Fexo = self.Fexo0
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
-            F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(1. - t2016)/(t2100 - t2016)
+            F = Find + Fexo
             Tdot = (F - self.rho*T - self.gammastar*(T-T0))/self.C
             # Need to compute the variation of damage to compute the growth rate of Total Cost
             if self.Damage == 'No':
                 Ddot = 0.
+            elif self.Damage == 'Q':
+                Ddot = (self.pi1*Tdot 
+                        +2.*self.pi2*Tdot*T)*(1.-D)**2
             elif self.Damage == 'Extreme':
                 Ddot = (self.pi1*Tdot 
                         +2.*self.pi2*Tdot*T
@@ -874,7 +881,7 @@ class GemmesIntegrator_V2(object):
             g = g+gTC
             Y0 = Y/TC
 
-            return sigma,pC,i,A,piK,D,DK,DY,g,gTC,Y0
+            return sigma,pC,i,A,pi,piK,D,DK,DY,g,gTC,Y0,F,Find
         
         def f(t,u):
             """
@@ -923,6 +930,9 @@ class GemmesIntegrator_V2(object):
             # Temperature damage
             if self.Damage == 'No':
                 D = 0.
+            elif self.Damage == 'Q':
+                D = 1. - 1./(1 + self.pi1*T
+                             + self.pi2*T**2)
             elif self.Damage == 'Extreme':
                 D = 1. - 1./(1 + self.pi1*T
                              + self.pi2*T**2
@@ -946,13 +956,14 @@ class GemmesIntegrator_V2(object):
             # g = ((1.-CR)*(1.25*self.Kappa(piK)*TC/self.nu - deltaD)
             #      +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
             g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
-                 +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))#+gTC
+                 +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
             # Population growth
             beta = self.deltaN*(1.-N/self.Nbar)
             # Temperature change
             CO2AT = CO2[0]
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
-            F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(t - t2016)/(t2100 - t2016)
+            Fexo = min(self.Fexo0 + (self.Fexo1-self.Fexo0)*t/84.,self.Fexo1)
+            F = Find + Fexo
             Y0 = Y/TC
             Eind = Y0*sigma*(1-n)
             E = Eind + Eland
@@ -962,6 +973,9 @@ class GemmesIntegrator_V2(object):
             # Need to compute the variation of damage to compute the growth rate of Total Cost
             if self.Damage == 'No':
                 Ddot = 0.
+            elif self.Damage == 'Q':
+                Ddot = Tdot*(self.pi1
+                             +2.*self.pi2*T)*(1.-D)**2
             elif self.Damage == 'Extreme':
                 Ddot = Tdot*(self.pi1
                              +2.*self.pi2*T
@@ -981,6 +995,7 @@ class GemmesIntegrator_V2(object):
             self.Eind = Eind
             self.i = i
             self.A = A
+            self.pi = pi
             self.piK = piK
             self.D = D
             self.DK = DK
@@ -988,7 +1003,8 @@ class GemmesIntegrator_V2(object):
             self.g = g
             self.n = n
             self.Y0 = Y0
-            self.gTC = DYdot_term
+            self.F = F
+            self.Find = Find
             
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
@@ -1023,7 +1039,7 @@ class GemmesIntegrator_V2(object):
                                     self.Eind_ini,
                                     self.CO2AT_ini)
 
-        sigma_ini,pC_ini,i_ini,A_ini,piK_ini,D_ini,DK_ini,DY_ini,g_ini,gTC_ini,Y0_ini = var_ini
+        sigma_ini,pC_ini,i_ini,A_ini,pi_ini,piK_ini,D_ini,DK_ini,DY_ini,g_ini,gTC_ini,Y0_ini,F_ini,Find_ini = var_ini
         
         U_ini = [self.omega_ini,
                  self.lambda_ini,
@@ -1044,6 +1060,7 @@ class GemmesIntegrator_V2(object):
                  self.pbs_ini,
                  i_ini,
                  A_ini,
+                 pi_ini,
                  piK_ini,
                  D_ini,
                  DK_ini,
@@ -1052,7 +1069,8 @@ class GemmesIntegrator_V2(object):
                  self.n_ini,
                  Y0_ini,
                  self.Taylor(i_ini),
-                 gTC_ini]
+                 F_ini,
+                 Find_ini]
 
         U_ini_sys = [self.omega_ini,
                      self.lambda_ini,
@@ -1070,34 +1088,61 @@ class GemmesIntegrator_V2(object):
                      self.Eland_ini,
                      pC_ini,
                      self.pbs_ini]
-        
-        system = ode(f).set_integrator('dop853')
-        system.set_initial_value(U_ini_sys,0.)
-        
+
         nts = int(self.tmax/self.dt)+1
         t = np.zeros(nts)
-        U = np.zeros((nts,28))
+        U = np.zeros((nts,30))
         U[0,:] = U_ini
-        #
-        k=0
-        while system.successful() and k < nts-1:
-            k=k+1
-            system.integrate(system.t + self.dt)
-            t[k] = system.t
-            U[k,:13] = system.y[:13]
-            U[k,13] = self.Eind
-            U[k,14:17] = system.y[13:16]
-            U[k,17] = self.i
-            U[k,18] = self.A
-            U[k,19] = self.piK
-            U[k,20] = self.D
-            U[k,21] = self.DK
-            U[k,22] = self.DY
-            U[k,23] = self.g
-            U[k,24] = self.n
-            U[k,25] = self.Y0
-            U[k,26] = self.Taylor(self.i)
-            U[k,27] = self.gTC
+
+        if self.method!='rk4':
+            system = ode(f).set_integrator(self.method)
+            system.set_initial_value(U_ini_sys,0.)        
+        
+            k=0
+            while system.successful() and k < nts-1:
+                k=k+1
+                system.integrate(system.t + self.dt)
+                t[k] = system.t
+                U[k,:13] = system.y[:13]
+                U[k,13] = self.Eind
+                U[k,14:17] = system.y[13:16]
+                U[k,17] = self.i
+                U[k,18] = self.A
+                U[k,19] = self.pi
+                U[k,20] = self.piK
+                U[k,21] = self.D
+                U[k,22] = self.DK
+                U[k,23] = self.DY
+                U[k,24] = self.g
+                U[k,25] = self.n
+                U[k,26] = self.Y0
+                U[k,27] = self.Taylor(self.i)
+                U[k,28] = self.F
+                U[k,29] = self.Find
+        else:
+            #
+            u = U_ini_sys
+            k=0
+            while k < nts-1:
+                k=k+1
+                u = self.rk4(f,t[k-1],u)
+                t[k] = t[k-1]+self.dt
+                U[k,:13] = u[:13]
+                U[k,13] = self.Eind
+                U[k,14:17] = u[13:16]
+                U[k,17] = self.i
+                U[k,18] = self.A
+                U[k,19] = self.pi
+                U[k,20] = self.piK
+                U[k,21] = self.D
+                U[k,22] = self.DK
+                U[k,23] = self.DY
+                U[k,24] = self.g
+                U[k,25] = self.n
+                U[k,26] = self.Y0
+                U[k,27] = self.Taylor(self.i)
+                U[k,28] = self.F
+                U[k,29] = self.Find
             
         # Keep track of the solution for later use (plot, treatment...)
         self.sol = {'t':t,'U':U}
@@ -1108,6 +1153,18 @@ class GemmesIntegrator_V2(object):
 
         return t,U
 
+    def rk4(self,f,t,u):
+
+        dt = self.dt
+
+        k1 = np.array(f(t,u))
+        k2 = np.array(f(t+0.5*dt,u+k1*0.5*dt))
+        k3 = np.array(f(t+0.5*dt,u+k2*0.5*dt))
+        k4 = np.array(f(t+dt,u+k3*dt))
+        
+        return u+(k1+2.*k2+2.*k3+k4)*dt/6.
+        
+    
     def plot(self, vars = None, fs=None, dmargin=None, draw=True, fignumber=1):
         """
         Plot the solution
