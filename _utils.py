@@ -242,7 +242,7 @@ class Params_V2(object):
     """
 
     def __init__(self):
-        u = [None for ii in range(0,27)]
+        u = [None for ii in range(0,30)]
         u[0] = {'var':'omega',
                 'meaning':'share of labour in GDP',
                 'symbol':r'$\omega$',
@@ -396,69 +396,93 @@ class Params_V2(object):
                  'ylim':'',
                  'index':18}
 
-        u[19] = {'var':'piK',
-                 'meaning':'return on assets',
-                 'symbol':r'$\pi_K$',
+        u[19] = {'var':'pi',
+                 'meaning':'profit share',
+                 'symbol':r'$\pi$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':'',
                  'index':19}
 
-        u[20] = {'var':'D',
-                 'meaning':'damage',
-                 'symbol':r'$D$',
+        u[20] = {'var':'piK',
+                 'meaning':'return on assets',
+                 'symbol':r'$\pi_K$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':'',
                  'index':20}
 
-        u[21] = {'var':'DK',
-                 'meaning':'capital damage',
-                 'symbol':r'$D_K$',
+        u[21] = {'var':'D',
+                 'meaning':'damage',
+                 'symbol':r'$D$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':'',
                  'index':21}
 
-        u[22] = {'var':'DY',
+        u[22] = {'var':'DK',
+                 'meaning':'capital damage',
+                 'symbol':r'$D_K$',
+                 'units':'adim.',
+                 'plot':'lin',
+                 'ylim':'',
+                 'index':22}
+
+        u[23] = {'var':'DY',
                  'meaning':'output damage',
                  'symbol':r'$D_Y$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':'',
-                 'index':22}
+                 'index':23}
         
-        u[23] = {'var':'g',
+        u[24] = {'var':'g',
                  'meaning':'real GDP growth rate',
                  'symbol':r'$g$',
                  'units':'1/year',
                  'plot':'lin',
                  'ylim':'',
-                 'index':23}
+                 'index':24}
 
-        u[24] = {'var':'n',
+        u[25] = {'var':'n',
                  'meaning':'reduction emission fraction',
                  'symbol':r'$n$',
                  'units':'adim.',
                  'plot':'lin',
                  'ylim':'',
-                 'index':24}
+                 'index':25}
         
-        u[25] = {'var':'Y0',
+        u[26] = {'var':'Y0',
                  'meaning':'output before abatement and damage',
                  'symbol':r'$Y_0$',
                  'units':'prod. unit',
                  'plot':'lin',
                  'ylim':'',
-                 'index':25}
+                 'index':26}
 
-        u[26] = {'var':'rCB',
+        u[27] = {'var':'rCB',
                 'meaning':'central bank interest rate',
                 'symbol':r'$r_\mathrm{CB}$',
                 'units':'1./year',
                 'plot':'lin',
                 'ylim':'',
-                'index':26}
+                'index':27}
+
+        u[28] = {'var':'F',
+                'meaning':'Radiative forcing',
+                'symbol':r'$F$',
+                'units':'W/m^2',
+                'plot':'lin',
+                'ylim':'',
+                'index':28}
+
+        u[29] = {'var':'Find',
+                'meaning':'Industrial radiative forcing',
+                'symbol':r'$F_\mathrm{ind}$',
+                'units':'W/m^2',
+                'plot':'lin',
+                'ylim':'',
+                'index':29}
 
         self._lparams = u
         self._version = 'v2'
