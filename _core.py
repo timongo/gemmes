@@ -566,18 +566,18 @@ class GemmesIntegrator_V2(object):
     def __init__(self, name='',
                  alpha=0.02, # growth rate of productivity
                  deltaN=0.0305, # leading growth rate of workforce
-                 Nbar=7.056, # maximum population in the logistic evolution
+                 Nbar=7.055925493, # maximum population in the logistic evolution
                  nu=2.7, # Constant capital-to-output ratio
                  pi1=0., # damage function parameter
                  pi2=0.00236, # damage function parameter
                  pi3=0.0000819, # damage function parameter
                  zeta3=6.754, # damage function parameter
-                 fK=1./3, # fraction of environmental damage allocated to the stock of capital
+                 fK=0., # (paper = 1./3) fraction of environmental damage allocated to the stock of capital
                  delta=0.04, # capital depreciation rate
                  sA=0, # Fraction of abatement costs that are subsidized
                  apC=0.02, # carbon price parameter
                  bpC=0., # carbon price parameter
-                 conv10to15=1.1607/1000, # conversion factor
+                 conv10to15=1.160723971/1000., # conversion factor
                  deltagsigma=-0.001, # dynamics of emissivity
                  eta=0.5, # relaxation parameter of inflation 
                  etar=10., # relaxation parameter of the interest rate
@@ -587,50 +587,50 @@ class GemmesIntegrator_V2(object):
                  phitaylor=0.5, # parameter characterizing the reactivity of the monetary policy
                  istar=0.02, #interest rate targeted by the monetary policy
                  srep=0.1, # Fraction of the outstanding debt repaid yearly
-                 S=3.1,
+                 S=3.1, # Climate sensitivity
                  gammastar=0.0176, # Heat exchange coefficient between temperature layers
-                 F2CO2=3.681, # Change in radiative forcing resulting from doubling of CO2
+                 F2CO2=3.6813, # Change in radiative forcing resulting from doubling of CO2
                  CATpind=588., # CO2 preindustrial concentration in atmosphere
                  CUPpind=360., # CO2 preindustrial concentration in upper layer of ocean and biosphere
                  CLOpind=1720., # CO2 preindustrial concentration in bottom layer of the ocean
                  Fexo0=0.5, # Initial value of the exogenous radiative forcing
                  Fexo1=1., # value of the exogenous radiative forcing in 2100
-                 phi12=0.024, # Transfer coefficient for carbon from the atmosphere to the upper ocean
-                 phi23=0.001, # Transfer coefficient for carbon from the upper ocean/biosphere to the lower ocean
-                 deltapbs=-0.005, # Exogenous growth rate of the back-stop technology price
+                 phi12=0.0239069, # Transfer coefficient for carbon from the atmosphere to the upper ocean
+                 phi23=0.0013409, # Transfer coefficient for carbon from the upper ocean/biosphere to the lower ocean
+                 deltapbs=-.00505076337, # Exogenous growth rate of the back-stop technology price
                  theta=2.6, # parameter of the abatement cost function
                  phi0=-.291535421, # Constant of the short-term Philips curve
                  phi1=.468777035, # Slope of the short-term Philips curve
-                 kappa0=0.03178, # Constant of the investment function
-                 kappa1=0.5753, # Slope of the investment function
+                 kappa0=.031774, # Constant of the investment function
+                 kappa1=.575318414, # Slope of the investment function
                  kappamin=0., # Minimum of the investment function
                  kappamax=0.3, # Maximum of the investment function
-                 div0=0.051, # Constant of the dividend function
-                 div1=0.473, # Slope of the dividend function
+                 div0=0.0512863, # Constant of the dividend function
+                 div1=0.4729, # Slope of the dividend function
                  divmin=0., # Minimum of the dividend function
                  divmax=1.,# Maximum of the dividend function
-                 C=49.76, # Heat capacity of the atmosphere, biosphere and upper ocean
+                 C=49.75817526819656, # Heat capacity of the atmosphere, biosphere and upper ocean
                  C0=3.52, # Heat capacity of the deeper ocean
-                 deltaEland=-0.022, # Growth rate of land-use change CO2 of emissions
+                 deltaEland=-.0220096, # Growth rate of land-use change CO2 of emissions
                  CR0=0.17, # Constant of the leverage function
                  CRlev=.1,# slope of the leverage function
                  #Initial conditions
                  CO2AT_ini=851.,
                  CO2UP_ini=460.,
                  CO2LO_ini=1740.,
-                 d_ini=1.53,
+                 d_ini=1.53282171,
                  Eind_ini=35.85,
                  Eland_ini=2.6,
-                 gsigma_ini=-0.0152,
+                 gsigma_ini=-0.0105,
                  pbs_ini=547.22,
                  n_ini=0.03,
-                 N_ini=4.83,
+                 N_ini=4.825484061,
                  T_ini=0.85,
                  T0_ini=0.0068,
-                 Y_ini=59.74,
-                 lambda_ini=0.675,
-                 omega_ini=0.578,
-                 r_ini=0.024,
+                 Y_ini=59.7387,
+                 lambda_ini=0.674828,
+                 omega_ini=0.5782323,
+                 r_ini=0.10627649250000004,
                  # Options
                  Damage = 'No', # 'No', 'Extreme'
                  # Integration parameters
@@ -817,6 +817,8 @@ class GemmesIntegrator_V2(object):
             """
             Returns
             sigma = ((1- DY)/Y)/((1-n)/Eind + pbs*(1-DY)/Y)
+            or simpler
+            sigma = Eind/((1-n)*Y)
             pC = root of n = min((pC/pbs)**(1/(theta-1)),1)
             """
 
@@ -830,25 +832,15 @@ class GemmesIntegrator_V2(object):
             DY = 1. - (1.-D)/(1.-DK)
             deltaD = (self.delta + DK)
             
-            sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
+            # sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
+            sigma = Eind/((1.-n)*Y)
             A = self.conv10to15*sigma*pbs*n**self.theta/self.theta
             pC = pbs*n**(self.theta - 1.)
 
             TC = (1-DY)*(1-A)
             i = self.eta*(self.mu*(omega+self.omitted) - 1.)
             rCB = self.Taylor(i)
-            self.TCi = TC
-            self.omegai = omega
-            self.ri = r
-            self.di = d
-            self.pCi = pC
-            self.sigmai = sigma
-            self.ni = n
-            self.sAi = self.sA
-            self.Ai = A
-            self.nui = self.nu
-            self.deltaDi = deltaD
-            piK = (TC*(1.-omega-r*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            piK = (TC*(1.-omega-rCB*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
             pi = self.nu/TC*piK
             leverage = d*TC/self.nu
             CR = self.Tau(leverage)
@@ -920,7 +912,7 @@ class GemmesIntegrator_V2(object):
             # central bank interest rate
             rCB = self.Taylor(i)
             # return on assets piK
-            piK = (TC*(1.-omega-r*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
+            piK = (TC*(1.-omega-rCB*d) - pC*self.conv10to15*sigma*(1-n) + self.sA*A)/self.nu - deltaD
             pi = self.nu/TC*piK
             # leverage
             leverage = d*TC/self.nu
@@ -957,8 +949,10 @@ class GemmesIntegrator_V2(object):
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
                     (-d*(g + i + CR*self.srep) # dd/dt
-                     +(1.-CR)*1.25*self.Kappa(pi)
-                     -self.nu*((1.-CR)*deltaD + piK - self.Delta(piK))/TC),
+                      +(1.-CR)*(1.25*self.Kappa(pi)
+                                -self.nu/TC*(deltaD
+                                             + piK
+                                             - self.Delta(piK)))),
                     N*beta, #dN.dt
                     (rCB-r)/self.etar, # dr/dt
                     (F - self.rho*T - self.gammastar*(T-T0))/self.C, #dT/dt
@@ -1030,9 +1024,9 @@ class GemmesIntegrator_V2(object):
                      self.pbs_ini]
         
         system = ode(f).set_integrator('dop853')
-        system.set_initial_value(U_ini_sys,self.dt)
+        system.set_initial_value(U_ini_sys,0.)
         
-        nts = int(self.tmax/self.dt)
+        nts = int(self.tmax/self.dt)+1
         t = np.zeros(nts)
         U = np.zeros((nts,27))
         U[0,:] = U_ini
