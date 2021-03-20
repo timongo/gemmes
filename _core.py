@@ -622,7 +622,7 @@ class GemmesIntegrator_V2(object):
                  Eind_ini=35.85,
                  Eland_ini=2.6,
                  gsigma_ini=-0.0105,
-                 pbs_ini=547.22,
+                 pbs_ini=547.2220801465,
                  n_ini=0.03,
                  N_ini=4.825484061,
                  T_ini=0.85,
@@ -813,7 +813,7 @@ class GemmesIntegrator_V2(object):
 
     def Solve(self, plot=True, fignumber=1, verb=-1):
 
-        def InitialConditions(omega,d,r,Y,pbs,T,n,Eind):
+        def InitialConditions(omega,d,r,Y,pbs,T,T0,n,gsigma,Eind,CO2AT):
             """
             Returns
             sigma = ((1- DY)/Y)/((1-n)/Eind + pbs*(1-DY)/Y)
@@ -821,6 +821,9 @@ class GemmesIntegrator_V2(object):
             sigma = Eind/((1-n)*Y)
             pC = root of n = min((pC/pbs)**(1/(theta-1)),1)
             """
+
+            t2016 = 1.
+            t2100 = 2100. - 2016.
 
             if self.Damage == 'No':
                 D = 0.
@@ -832,9 +835,9 @@ class GemmesIntegrator_V2(object):
             DY = 1. - (1.-D)/(1.-DK)
             deltaD = (self.delta + DK)
             
-            # sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
+            #sigma = ((1. - DY)/Y)/((1.-n)/Eind + n**self.theta/self.theta*pbs*(1.-DY)/Y)
             sigma = Eind/((1.-n)*Y)
-            A = self.conv10to15*sigma*pbs*n**self.theta/self.theta
+            A = sigma/1000.*pbs*n**self.theta/self.theta
             pC = pbs*n**(self.theta - 1.)
 
             TC = (1-DY)*(1-A)
@@ -845,14 +848,33 @@ class GemmesIntegrator_V2(object):
             leverage = d*TC/self.nu
             CR = self.Tau(leverage)
             # Economic growth rate
-            # g = ((1.-CR)*(1.25*self.Kappa(piK)*TC/self.nu - deltaD)
-            #      +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
             g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
                  +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
 
+            Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
+            F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(1. - t2016)/(t2100 - t2016)
+            Tdot = (F - self.rho*T - self.gammastar*(T-T0))/self.C
+            # Need to compute the variation of damage to compute the growth rate of Total Cost
+            if self.Damage == 'No':
+                Ddot = 0.
+            elif self.Damage == 'Extreme':
+                Ddot = (self.pi1*Tdot 
+                        +2.*self.pi2*Tdot*T
+                        +self.zeta3*self.pi3*T**(self.zeta3-1.)*Tdot)*(1.-D)**2
+            
+            # TCdot/TC
+            pCdot = pC*(self.apC + self.bpC/(1.+t2016))
+            pbsdot = pbs*self.deltapbs
+            ndot = n/(self.theta-1.)*(self.apC + self.bpC/(1.+t2016)
+                                      - self.deltapbs)
+            Adot = (gsigma + self.deltapbs + self.theta*ndot/n)*A
+            DYdot_term = Ddot*(1./(1.-D) - 1./(1.-DK))
+            gTC = -Adot/(1.-A)-DYdot_term
+
+            g = g+gTC
             Y0 = Y/TC
 
-            return sigma,pC,i,A,piK,D,DK,DY,g,Y0
+            return sigma,pC,i,A,piK,D,DK,DY,g,gTC,Y0
         
         def f(t,u):
             """
@@ -872,6 +894,9 @@ class GemmesIntegrator_V2(object):
             u[15] = pbs, the backstop technology price
             """
 
+            t2016 = 1.
+            t2100 = 2100. - 2016.
+
             omega = u[0]
             lam = u[1]
             d = u[2]
@@ -888,12 +913,12 @@ class GemmesIntegrator_V2(object):
             pbs = u[15]
             
             # saturation of pC
-            expo = (self.theta-1.)/self.theta
-            pC = pbs*min(pC/pbs,0.95*(self.theta/(sigma*pbs))**expo)
+            #expo = (self.theta-1.)/self.theta
+            #pC = pbs*min(pC/pbs,0.95*(self.theta/(sigma*pbs))**expo)
 
             # Abatement cost
-            n = min((pC/pbs)**(1./(self.theta-1.)),1)
-            A = self.conv10to15*sigma*pbs*n**self.theta/self.theta
+            n = min((pC/((1.-self.sA)*pbs))**(1./(self.theta-1.)),1)
+            A = sigma/1000.*pbs*n**self.theta/self.theta
 
             # Temperature damage
             if self.Damage == 'No':
@@ -921,19 +946,37 @@ class GemmesIntegrator_V2(object):
             # g = ((1.-CR)*(1.25*self.Kappa(piK)*TC/self.nu - deltaD)
             #      +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
             g = ((1.-CR)*(1.25*self.Kappa(pi)*TC/self.nu - deltaD)
-                 +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))
+                 +CR*(piK - self.Delta(piK) - TC*self.srep*d/self.nu))#+gTC
             # Population growth
             beta = self.deltaN*(1.-N/self.Nbar)
             # Temperature change
             CO2AT = CO2[0]
             Find = self.F2CO2*np.log(CO2AT/self.CATpind)/np.log(2.)
-            t2016 = 1.
-            t2100 = 2100. - 2016.
             F = Find + self.Fexo0 + (self.Fexo1-self.Fexo0)*(t - t2016)/(t2100 - t2016)
             Y0 = Y/TC
             Eind = Y0*sigma*(1-n)
             E = Eind + Eland
             CO2dot = np.array([E*self.convCO2toC,0,0]) + np.dot(self.phimat,CO2)
+
+            Tdot = (F - self.rho*T - self.gammastar*(T-T0))/self.C
+            # Need to compute the variation of damage to compute the growth rate of Total Cost
+            if self.Damage == 'No':
+                Ddot = 0.
+            elif self.Damage == 'Extreme':
+                Ddot = Tdot*(self.pi1
+                             +2.*self.pi2*T
+                             +self.zeta3*self.pi3*T**(self.zeta3-1.))*(1.-D)**2
+            
+            # TCdot/TC
+            pCdot = pC*(self.apC + self.bpC/(t+t2016))
+            pbsdot = pbs*self.deltapbs
+            ndot = n/(self.theta-1.)*(self.apC + self.bpC/(t+t2016)
+                                      - self.deltapbs)
+            Adot = (gsigma + self.deltapbs + self.theta*ndot/n)*A
+            DYdot_term = Ddot*(1./(1.-D) - self.fK/(1.-DK))
+            gTC = -Adot/(1.-A)-DYdot_term
+
+            g = g+gTC
 
             self.Eind = Eind
             self.i = i
@@ -945,6 +988,7 @@ class GemmesIntegrator_V2(object):
             self.g = g
             self.n = n
             self.Y0 = Y0
+            self.gTC = DYdot_term
             
             return [omega*(self.Phi(lam) - i - self.alpha), #domega/dt
                     lam*(g - self.alpha - beta), # dlam/dt
@@ -955,7 +999,7 @@ class GemmesIntegrator_V2(object):
                                              - self.Delta(piK)))),
                     N*beta, #dN.dt
                     (rCB-r)/self.etar, # dr/dt
-                    (F - self.rho*T - self.gammastar*(T-T0))/self.C, #dT/dt
+                    Tdot, #dT/dt
                     self.gammastar*(T-T0)/self.C0, # dT0/dt
                     Y*g, #dY/dt
                     sigma*gsigma, #dsigma/dt
@@ -964,8 +1008,8 @@ class GemmesIntegrator_V2(object):
                     CO2dot[1], # dCO2/dt (UP)
                     CO2dot[2], # dCO2/dt (LO)
                     Eland*self.deltaEland, #dEland/dt
-                    pC*(self.apC + self.bpC/(t+t2016)), #dpC/dt
-                    pbs*self.deltapbs] # dpbs/dt
+                    pCdot, #dpC/dt
+                    pbsdot] # dpbs/dt
 
         var_ini = InitialConditions(self.omega_ini,
                                     self.d_ini,
@@ -973,10 +1017,13 @@ class GemmesIntegrator_V2(object):
                                     self.Y_ini,
                                     self.pbs_ini,
                                     self.T_ini,
+                                    self.T0_ini,
                                     self.n_ini,
-                                    self.Eind_ini)
+                                    self.gsigma_ini,
+                                    self.Eind_ini,
+                                    self.CO2AT_ini)
 
-        sigma_ini,pC_ini,i_ini,A_ini,piK_ini,D_ini,DK_ini,DY_ini,g_ini,Y0_ini = var_ini
+        sigma_ini,pC_ini,i_ini,A_ini,piK_ini,D_ini,DK_ini,DY_ini,g_ini,gTC_ini,Y0_ini = var_ini
         
         U_ini = [self.omega_ini,
                  self.lambda_ini,
@@ -991,7 +1038,7 @@ class GemmesIntegrator_V2(object):
                  self.CO2AT_ini,
                  self.CO2UP_ini,
                  self.CO2LO_ini,
-                 self.Eind_ini,
+                 sigma_ini*Y0_ini*(1-self.n_ini),
                  self.Eland_ini,
                  pC_ini,
                  self.pbs_ini,
@@ -1004,7 +1051,8 @@ class GemmesIntegrator_V2(object):
                  g_ini,
                  self.n_ini,
                  Y0_ini,
-                 self.Taylor(i_ini)]
+                 self.Taylor(i_ini),
+                 gTC_ini]
 
         U_ini_sys = [self.omega_ini,
                      self.lambda_ini,
@@ -1028,7 +1076,7 @@ class GemmesIntegrator_V2(object):
         
         nts = int(self.tmax/self.dt)+1
         t = np.zeros(nts)
-        U = np.zeros((nts,27))
+        U = np.zeros((nts,28))
         U[0,:] = U_ini
         #
         k=0
@@ -1049,6 +1097,7 @@ class GemmesIntegrator_V2(object):
             U[k,24] = self.n
             U[k,25] = self.Y0
             U[k,26] = self.Taylor(self.i)
+            U[k,27] = self.gTC
             
         # Keep track of the solution for later use (plot, treatment...)
         self.sol = {'t':t,'U':U}
