@@ -300,13 +300,13 @@ class Params_V2(object):
                 'ylim':'',
                 'index':6}
 
-        u[7] = {'var':'Y',
-                'meaning':'GDP',
-                'symbol':r'$Y$',
-                'units':'(prod. unit)/year',
-                'plot':'lin',
-                'ylim':'',
-                'index':7}
+        u[7] = {'var':'Y0',
+                 'meaning':'output before abatement and damage',
+                 'symbol':r'$Y_0$',
+                 'units':'prod. unit',
+                 'plot':'lin',
+                 'ylim':'',
+                 'index':7}
 
         u[8] = {'var':'sigma',
                 'meaning':'emission intensity',
@@ -452,13 +452,13 @@ class Params_V2(object):
                  'ylim':'',
                  'index':25}
         
-        u[26] = {'var':'Y0',
-                 'meaning':'output before abatement and damage',
-                 'symbol':r'$Y_0$',
-                 'units':'prod. unit',
-                 'plot':'lin',
-                 'ylim':'',
-                 'index':26}
+        u[26] = {'var':'Y',
+                'meaning':'GDP',
+                'symbol':r'$Y$',
+                'units':'(prod. unit)/year',
+                'plot':'lin',
+                'ylim':'',
+                'index':26}
 
         u[27] = {'var':'rCB',
                 'meaning':'central bank interest rate',
